@@ -1,0 +1,144 @@
+from typing import List, Dict
+from dataclasses import dataclass
+
+
+@dataclass
+class PrintJob:
+    id: str
+    volume: float
+    priority: int
+    print_time: int
+
+
+@dataclass
+class PrinterConstraints:
+    max_volume: float
+    max_items: int
+
+
+def optimize_printing(print_jobs: List[Dict], constraints: Dict) -> Dict:
+    """
+    Оптимізує чергу 3D-друку згідно з пріоритетами та обмеженнями принтера
+
+    Args:
+        print_jobs: Список завдань на друк
+        constraints: Обмеження принтера
+
+    Returns:
+        Dict з порядком друку та загальним часом
+    """
+    if not isinstance(print_jobs, list):
+        raise TypeError("print_jobs must be a list")
+    if not isinstance(constraints, dict):
+        raise TypeError("constraints must be a dict")
+
+    pc = PrinterConstraints(
+        max_volume=float(constraints["max_volume"]),
+        max_items=int(constraints["max_items"])
+    )
+
+    if pc.max_volume <= 0:
+        raise ValueError("max_volume must be > 0")
+    if pc.max_items <= 0:
+        raise ValueError("max_items must be > 0")
+
+    jobs: List[PrintJob] = []
+    for j in print_jobs:
+        job = PrintJob(
+            id=str(j["id"]),
+            volume=float(j["volume"]),
+            priority=int(j["priority"]),
+            print_time=int(j["print_time"])
+        )
+        if job.volume <= 0:
+            raise ValueError(f"job {job.id}: volume must be > 0")
+        if job.print_time <= 0:
+            raise ValueError(f"job {job.id}: print_time must be > 0")
+        if job.priority not in (1, 2, 3):
+            raise ValueError(f"job {job.id}: priority must be 1, 2 or 3")
+        if job.volume > pc.max_volume:
+            raise ValueError(f"job {job.id}: volume exceeds printer max_volume")
+        jobs.append(job)
+
+    # greedy step 1: sort by priority (1 is highest), keep original order for ties
+    jobs_sorted = sorted(enumerate(jobs), key=lambda x: (x[1].priority, x[0]))
+    jobs_sorted = [j for _, j in jobs_sorted]
+
+    print_order: List[str] = []
+    total_time = 0
+
+    # greedy step 2: pack sequentially into batches under max_volume and max_items
+    current_volume = 0.0
+    current_items = 0
+    current_max_time = 0
+
+    for job in jobs_sorted:
+        can_add_by_volume = (current_volume + job.volume) <= pc.max_volume
+        can_add_by_items = (current_items + 1) <= pc.max_items
+
+        if current_items > 0 and (not can_add_by_volume or not can_add_by_items):
+            total_time += current_max_time
+            current_volume = 0.0
+            current_items = 0
+            current_max_time = 0
+
+        current_volume += job.volume
+        current_items += 1
+        current_max_time = max(current_max_time, job.print_time)
+        print_order.append(job.id)
+
+    if current_items > 0:
+        total_time += current_max_time
+
+    return {
+        "print_order": print_order,
+        "total_time": total_time
+    }
+
+
+# Тестування
+def test_printing_optimization():
+    # Тест 1: Моделі однакового пріоритету
+    test1_jobs = [
+        {"id": "M1", "volume": 100, "priority": 1, "print_time": 120},
+        {"id": "M2", "volume": 150, "priority": 1, "print_time": 90},
+        {"id": "M3", "volume": 120, "priority": 1, "print_time": 150}
+    ]
+
+    # Тест 2: Моделі різних пріоритетів
+    test2_jobs = [
+        {"id": "M1", "volume": 100, "priority": 2, "print_time": 120},  # лабораторна
+        {"id": "M2", "volume": 150, "priority": 1, "print_time": 90},  # дипломна
+        {"id": "M3", "volume": 120, "priority": 3, "print_time": 150}  # особистий проєкт
+    ]
+
+    # Тест 3: Перевищення обмежень об'єму
+    test3_jobs = [
+        {"id": "M1", "volume": 250, "priority": 1, "print_time": 180},
+        {"id": "M2", "volume": 200, "priority": 1, "print_time": 150},
+        {"id": "M3", "volume": 180, "priority": 2, "print_time": 120}
+    ]
+
+    constraints = {
+        "max_volume": 300,
+        "max_items": 2
+    }
+
+    print("Тест 1 (однаковий пріоритет):")
+    result1 = optimize_printing(test1_jobs, constraints)
+    print(f"Порядок друку: {result1['print_order']}")
+    print(f"Загальний час: {result1['total_time']} хвилин")
+
+    print("\nТест 2 (різні пріоритети):")
+    result2 = optimize_printing(test2_jobs, constraints)
+    print(f"Порядок друку: {result2['print_order']}")
+    print(f"Загальний час: {result2['total_time']} хвилин")
+
+    print("\nТест 3 (перевищення обмежень):")
+    result3 = optimize_printing(test3_jobs, constraints)
+    print(f"Порядок друку: {result3['print_order']}")
+    print(f"Загальний час: {result3['total_time']} хвилин")
+
+
+if __name__ == "__main__":
+    test_printing_optimization()
