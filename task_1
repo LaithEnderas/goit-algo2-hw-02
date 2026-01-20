@@ -1,0 +1,36 @@
+from typing import Iterable, List, Tuple, TypeVar
+
+T = TypeVar("T")
+
+
+def min_max_divide_and_conquer(arr: List[T]) -> Tuple[T, T]:
+    # returns (min_value, max_value) using divide and conquer
+
+    if not arr:
+        raise ValueError("array must be non-empty")
+
+    def rec(l: int, r: int) -> Tuple[T, T]:
+        # segment is arr[l:r] (r is exclusive)
+
+        n = r - l
+        if n == 1:
+            x = arr[l]
+            return x, x
+        if n == 2:
+            a, b = arr[l], arr[l + 1]
+            return (a, b) if a <= b else (b, a)
+
+        m = l + n // 2
+        min1, max1 = rec(l, m)
+        min2, max2 = rec(m, r)
+
+        return (min1 if min1 <= min2 else min2,
+                max1 if max1 >= max2 else max2)
+
+    return rec(0, len(arr))
+
+
+# example
+data = [3, 7, -2, 10, 0, 5]
+mn, mx = min_max_divide_and_conquer(data)
+print(mn, mx)  # -2 10
